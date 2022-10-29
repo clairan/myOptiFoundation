@@ -1,0 +1,171 @@
+trigger: 
+  tags:
+    include:
+      - v0.*
+
+pr: none
+
+stages:
+  - stage: Compile
+    displayName: Compile sqlcmd on all 3 platforms
+    jobs:
+    - job: Compile_sqlcmd
+      strategy:
+        matrix:
+          linux:
+            imageName: 'ubuntu-latest'
+            artifact: LinuxAmd64
+            os:
+            arch:
+          mac:
+            imageName: 'macOS-latest'
+            artifact: DarwinAmd64
+            os:
+            arch:
+          windows:
+            imageName: 'windows-latest'
+            artifact: WindowsAmd64
+            os:
+            arch:
+          linuxArm:
+            imageName: 'ubuntu-latest'
+            artifact: LinuxArm64
+            os:
+            arch: arm64
+          windowsArm:
+            imageName: 'windows-latest'
+            artifact: WindowsArm
+            os:
+            arch: arm
+      pool:
+        vmImage: $(imageName)
+      steps:
+        - template: build-common.yml
+          parameters:
+            OS: $(os)
+            Arch: $(arch)
+            ArtifactName: $(artifact)
+
+  - stage: CreatePackages
+    displayName: Create packages to publish
+    jobs:
+    - job: Sign_and_pack
+      pool:
+        vmImage: 'windows-latest'
+      steps:
+      - task: PowerShell@2
+        displayName: Set last tag to variable
+        inputs:
+          targetType: 'inline'
+          script: |
+            $VERSION_TAG = git describe --tags (git rev-list --tags --max-count=1)
+            Write-Host("##vso[task.setvariable variable=VERSION_TAG]$VERSION_TAG")
+            Write-Host($VERSION_TAG)
+
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          buildType: 'current'
+          targetPath: '$(Pipeline.Workspace)'
+      
+      - task: EsrpCodeSigning@1
+        displayName: Sign Windows binary
+        inputs:
+          ConnectedServiceName: 'Code Signing'
+          FolderPath: '$(Pipeline.Workspace)'
+          Pattern: 'sqlcmd.exe'
+          signConfigType: 'inlineSignParams'
+          SessionTimeout: '600'
+          MaxConcurrency: '5'
+          MaxRetryAttempts: '5'
+          inlineOperation: |
+            [
+              {
+                "keyCode": "CP-230012",
+                "operationSetCode": "SigntoolSign",
+                "parameters": [
+                {
+                  "parameterName": "OpusName",
+                  "parameterValue": "go-sqlcmd"
+                },
+                {
+                  "parameterName": "OpusInfo",
+                  "parameterValue": "https://github.com/microsoft/go-sqlcmd"
+                },
+                {
+                  "parameterName": "PageHash",
+                  "parameterValue": "/NPH"
+                },
+                {
+                  "parameterName": "FileDigest",
+                  "parameterValue": "/fd sha256"
+                },
+                {
+                  "parameterName": "TimeStamp",
+                  "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+                }
+                ],
+                "toolName": "signtool.exe",
+                "toolVersion": "6.2.9304.0"
+              },
+              {
+                "keyCode": "CP-230012",
+                "operationSetCode": "SigntoolVerify",
+                "parameters": [
+                {
+                  "parameterName": "VerifyAll",
+                  "parameterValue": "/all"
+                }
+                    ],
+                "toolName": "signtool.exe",
+                "toolVersion": "6.2.9304.0"
+              }
+            ]
+      - task: ArchiveFiles@2
+        displayName: Zip Windows amd64 binary
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)\SqlcmdWindowsAmd64\Sqlcmd.exe'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/sqlcmd-$(VERSION_TAG)-windows-x64.zip'
+
+      - task: ArchiveFiles@2
+        displayName: Zip Windows arm binary
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)\SqlcmdWindowsArm\Sqlcmd.exe'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/sqlcmd-$(VERSION_TAG)-windows-arm.zip'
+  
+      - task: ArchiveFiles@2
+        displayName: Tar Linux amd64 binary
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)\SqlcmdLinuxAmd64'
+          includeRootFolder: false
+          archiveType: 'tar'
+          tarCompression: 'bz2'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/sqlcmd-$(VERSION_TAG)-linux-x64.tar.bz2'
+
+      - task: ArchiveFiles@2
+        displayName: Tar Darwin binary
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)\SqlcmdDarwinAmd64'
+          includeRootFolder: false
+          archiveType: 'tar'
+          tarCompression: 'bz2'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/sqlcmd-$(VERSION_TAG)-darwin-x64.tar.bz2'
+
+      - task: ArchiveFiles@2
+        displayName: Tar Linux arm64 binary
+        inputs:
+          rootFolderOrFile: '$(Pipeline.Workspace)\SqlcmdLinuxArm64'
+          includeRootFolder: false
+          archiveType: 'tar'
+          tarCompression: 'bz2'
+          archiveFile: '$(Build.ArtifactStagingDirectory)/sqlcmd-$(VERSION_TAG)-linux-arm64.tar.bz2'
+  
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish release archives'
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)
+          artifactName: SqlcmdRelease
+

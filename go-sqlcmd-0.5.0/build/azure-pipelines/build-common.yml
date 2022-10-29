@@ -1,0 +1,47 @@
+parameters:
+- name: OS
+  type: string
+  default:
+- name: Arch
+  type: string
+  default: 
+- name: ArtifactName
+  type: string
+
+steps: 
+- task: GoTool@0
+  inputs:
+    version: '1.16.5'
+
+- task: Go@0
+  displayName: 'Go: get dependencies'
+  inputs:
+    command: 'get'
+    arguments: '-d'
+    workingDirectory: '$(Build.SourcesDirectory)/cmd/sqlcmd'
+  env:
+      GOOS: ${{ parameters.OS }}
+      GOARCH: ${{ parameters.Arch }}
+    
+- task: Go@0
+  displayName: 'Go: build sqlcmd'
+  inputs:
+    command: 'build'
+    arguments: '-o $(Build.BinariesDirectory)'
+    workingDirectory: '$(Build.SourcesDirectory)/cmd/sqlcmd'
+  env:
+      GOOS: ${{ parameters.OS }}
+      GOARCH: ${{ parameters.Arch }}
+
+- task: CopyFiles@2
+  inputs:
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    SourceFolder: '$(Build.BinariesDirectory)'
+    Contents: '**'
+
+- task: PublishPipelineArtifact@1
+  displayName: 'Publish binary'
+  inputs:
+    targetPath: $(Build.ArtifactStagingDirectory)
+    artifactName: 'Sqlcmd${{ parameters.ArtifactName }}'
+
