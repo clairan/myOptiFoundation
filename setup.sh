@@ -4,12 +4,11 @@ SOURCEPATH=$ROOTPATH/src
 
 add_sql_container()
 {
-    if [ $( docker ps -a | grep sql_server_optimizely | wc -l ) -gt 0 ]; then
-        echo "sql_server_optimizely exists"
+    if [ $( docker ps -a | grep azuresqledge | wc -l ) -gt 0 ]; then
+        echo "azuresqledge exists"
     else
-        
-        #sudo docker run -d --name sql_server_optimizely -h $1 -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=Episerver123!' \
-         #  -p 1433:1433 mcr.microsoft.com/mssql/server:2019-latest
+        echo "installing azure sql edge"
+        sudo docker run -d --name azuresqledge -h $1 -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=yourStrongP@ssword' -p 1433:1433 mcr.microsoft.com/azure-sql-edge
         docker cp ./build azuresqledge:/build
     fi
 }
@@ -26,7 +25,7 @@ dotnet nuget add source https://nuget.optimizely.com/feed/packages.svc -n Optimi
 ##dotnet dev-certs https --trust
 
 dotnet build
-##add_sql_container "$SQLSERVER"
+add_sql_container
 
 cms_db=$APPNAME.Cms
 commerce_db=$APPNAME.Commerce
