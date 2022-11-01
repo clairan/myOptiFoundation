@@ -39,7 +39,7 @@ dotnet run --project .\src\Foundation\Foundation.csproj
 
 ```
 Open a Terminal window
-git clone https://github.com/episerver/Foundation.git
+git clone https://github.com/clairan/myOptiFoundation.git
 cd Foundation
 git checkout main
 chmod u+x setup.sh
@@ -51,7 +51,7 @@ dotnet run --project ./src/Foundation/Foundation.csproj
 
 ```
 Open a bash terminal window
-git clone https://github.com/episerver/Foundation.git
+git clone https://github.com/clairan/myOptiFoundation.git
 cd Foundation
 git checkout main
 chmod u+x setup.sh
